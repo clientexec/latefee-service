@@ -109,10 +109,51 @@ class PluginLatefee extends ServicePlugin
         return array($this->user->lang('%s invoice reminders were sent', count($invoicesList)));
     }
 
-    function pendingItems() { }
+    function pendingItems()
+    {
+        $currency = new Currency($this->user);
+        // Select all customers that have an invoice that needs generation
+        $query = "SELECT i.`id`,i.`customerid`, i.`amount`, i.`balance_due`, (TO_DAYS(NOW()) - TO_DAYS(i.`billdate`)) AS days "
+                ."FROM `invoice` i, `users` u "
+                ."WHERE (i.`status`='0' OR i.`status`='5') AND u.`id`=i.`customerid` AND u.`status`='1' AND TO_DAYS(NOW()) - TO_DAYS(i.`billdate`) > 0 AND i.`subscription_id` = '' "
+                ."ORDER BY i.`billdate`";
+        $result = $this->db->query($query);
+        $returnArray = array();
+        $returnArray['data'] = array();
+        while ($row = $result->fetch()) {
+            $user = new User($row['customerid']);
+            $tmpInfo = array();
+            $tmpInfo['customer'] = '<a href="index.php?fuse=clients&controller=userprofile&view=profilecontact&frmClientID=' . $user->getId() . '">' . $user->getFullName() . '</a>';
+            $tmpInfo['invoice_number'] = '<a href="index.php?controller=invoice&fuse=billing&frmClientID=' . $user->getId() . '&view=invoice&invoiceid=' . $row['id'] . ' ">' . $row['id'] . '</a>';
+            $tmpInfo['amount'] = $currency->format($this->settings->get('Default Currency'), $row['amount'], true);
+            $tmpInfo['balance_due'] = $currency->format($this->settings->get('Default Currency'), $row['balance_due'], true);
+            $tmpInfo['days'] = $row['days'];
+            $returnArray['data'][] = $tmpInfo;
+        }
+        $returnArray["totalcount"] = count($returnArray['data']);
+        $returnArray['headers'] = array (
+            $this->user->lang('Customer'),
+            $this->user->lang('Invoice Number'),
+            $this->user->lang('Amount'),
+            $this->user->lang('Balance Due'),
+            $this->user->lang('Days Overdue'),
+        );
+        return $returnArray;
+    }
 
     function output() { }
 
-    function dashboard() { }
+    function dashboard()
+    {
+        $query = "SELECT COUNT(*) AS overdue "
+                ."FROM `invoice` i, `users` u "
+                ."WHERE (i.`status`='0' OR i.`status`='5') AND u.`id`=i.`customerid` AND u.`status`='1' AND TO_DAYS(NOW()) - TO_DAYS(i.`billdate`) > 0 AND i.`subscription_id` = '' ";
+        $result = $this->db->query($query);
+        $row = $result->fetch();
+        if (!$row) {
+            $row['overdue'] = 0;
+        }
+        return $this->user->lang('Number of invoices overdue: %d', $row['overdue']);
+    }
 }
 ?>
