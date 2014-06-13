@@ -26,15 +26,15 @@ class PluginLatefee extends ServicePlugin
                 'description'   => lang('When enabled, late invoices will be charged with additional late fees. This service should only run once per day, and preferable if run before <b>Invoice Reminder</b> service, to avoid sending reminders without the late fee.'),
                 'value'         => '0',
             ),
-            lang('Billing type name')       => array(
+            lang('Default late fee charge')  => array(
                 'type'          => 'text',
-                'description'   => lang('Enter the exact name of the <b>billing type</b> to be used to charge a late fee on invoices. Also make sure the <b>billing type</b> exist and it has set the value you want to charge for late fees.'),
+                'description'   => lang('Enter a default amount to be charged as a late fee on invoices, if the product has not defined its own late fee. <br><strong><i>Note: Leave this field empty if you want to avoid default late fee.</i></strong>'),
                 'value'         => '',
             ),
-            lang('Days to charge late fee')       => array(
+            lang('Day to charge late fee')  => array(
                 'type'          => 'text',
-                'description'   => lang('Enter the number of days after the due date to charge a late fee on invoices.  You may enter more than one day by seperating the numbers with a comma.  <strong><i>Note: A number followed by a + sign indicates to charge a late fee for all days greater than the previous number or use * to charge late fees each day.</i></strong><br><br><b>Example</b>: 5,10+ would charge late fee when five days late, and will charge late fee again when ten days late and once again on every following day.'),
-                'value'         => '5,10+',
+                'description'   => lang('Enter the number of days after the due date to charge a late fee on invoices. <br><strong><i>Note: Please enter one number only.</i></strong><br><br><b>Example</b>: 10 would charge late fee when ten days late.'),
+                'value'         => '10',
             ),
             lang('Run schedule - Minute')  => array(
                 'type'          => 'text',
@@ -72,41 +72,60 @@ class PluginLatefee extends ServicePlugin
         $invoicesList = array();
         $arrDays = explode(',', $this->settings->get('plugin_latefee_Days to charge late fee'));
 
-        $billingTypeName = $this->settings->get('plugin_latefee_Billing type name');
-        $billingTypeGateway = new BillingTypeGateway();
-        $billingType = $billingTypeGateway->GetBillingTypeByName($billingTypeName);
+        $billingGateway = new BillingGateway($this->user);
+        $invoicesList = $billingGateway->getUnpaidInvoicesDueDays($arrDays);
 
-        if(isset($billingType['id']) && $billingType['id'] != 0){
-            $billingGateway = new BillingGateway($this->user);
-            $invoicesList = $billingGateway->getUnpaidInvoicesDueDays($arrDays);
+        foreach($invoicesList as $invoiceData){
+            $invoice = new Invoice($invoiceData['invoiceId']);
+            if(!$invoice->hasLateFees()){
+                $packageIDs = $invoice->getAllPackageIDs();
 
-            foreach($invoicesList as $invoiceData){
-                $params = array(
-                    'm_CustomerID'        => $invoiceData['userId'],
-                    'm_Description'       => $billingType['description'],
-                    'm_Detail'            => $billingType['detail'],
-                    'm_InvoiceID'         => $invoiceData['invoiceId'],
-                    'm_Date'              => date("Y-m-d"),
-                    'm_BillingTypeID'     => $billingType['id'],
-                    'm_IsProrating'       => 0,
-                    'm_Price'             => $billingType['price'],
-                    'm_Recurring'         => 0,
-                    'm_AppliesToID'       => 0,
-                    'm_Setup'             => 0,
-                    'm_Taxable'           => 0,
-                    'm_TaxAmount'         => 0,
-                );
+                $chargedLateFee = false;
+                foreach($packageIDs AS $packageID){
+                    $userPackage = new UserPackage($packageID);
+                    $lateFee = $userPackage->getLateFee();
+                    if($lateFee === false || $lateFee == ''){
+                        $lateFee = $this->settings->get('plugin_latefee_Default late fee charge');
+                    }
 
-                $invoiceEntry = new InvoiceEntry($params);
-                $invoiceEntry->updateRecord();
-
-                $invoice = new Invoice($invoiceData['invoiceId']);
+                    if($lateFee != '' && $lateFee > 0.00){
+                        $this->addLateFeeInvoiceEntry($invoiceData, $lateFee, $packageID);
+                        $chargedLateFee = true;
+                    }
+                }
+                if(!$chargedLateFee){
+                    $lateFee = $this->settings->get('plugin_latefee_Default late fee charge');
+                    if($lateFee != ''){
+                        $this->addLateFeeInvoiceEntry($invoiceData, $lateFee, 0);
+                    }
+                }
                 $invoice->recalculateInvoice();
                 $invoice->update();
             }
         }
 
         return array($this->user->lang('%s invoice reminders were sent', count($invoicesList)));
+    }
+
+    function addLateFeeInvoiceEntry($invoiceData, $lateFee, $packageID)
+    {
+        $params = array(
+            'm_CustomerID'        => $invoiceData['userId'],
+            'm_Description'       => $this->user->lang('Late Fee'),
+            'm_Detail'            => $this->user->lang('Late Fee'),
+            'm_InvoiceID'         => $invoiceData['invoiceId'],
+            'm_Date'              => date("Y-m-d"),
+            'm_BillingTypeID'     => BILLINGTYPE_LATE_FEE,
+            'm_IsProrating'       => 0,
+            'm_Price'             => $lateFee,
+            'm_Recurring'         => 0,
+            'm_AppliesToID'       => $packageID,
+            'm_Setup'             => 0,
+            'm_Taxable'           => 1,
+            'm_TaxAmount'         => 0,
+        );
+        $invoiceEntry = new InvoiceEntry($params);
+        $invoiceEntry->updateRecord();
     }
 
     function pendingItems()
