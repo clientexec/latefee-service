@@ -1,5 +1,6 @@
 <?php
 require_once 'modules/admin/models/ServicePlugin.php';
+require_once 'modules/admin/models/StatusAliasGateway.php' ;
 include_once 'modules/billing/models/BillingTypeGateway.php';
 require_once 'modules/billing/models/BillingGateway.php';
 require_once 'modules/billing/models/Invoice.php';
@@ -132,9 +133,10 @@ class PluginLatefee extends ServicePlugin
     {
         $currency = new Currency($this->user);
         // Select all customers that have an invoice that needs generation
+        $userActiveStatuses = StatusAliasGateway::userActiveAliases($this->user);
         $query = "SELECT i.`id`,i.`customerid`, i.`amount`, i.`balance_due`, (TO_DAYS(NOW()) - TO_DAYS(i.`billdate`)) AS days "
                 ."FROM `invoice` i, `users` u "
-                ."WHERE (i.`status`='0' OR i.`status`='5') AND u.`id`=i.`customerid` AND u.`status`='1' AND TO_DAYS(NOW()) - TO_DAYS(i.`billdate`) > 0 AND i.`subscription_id` = '' "
+                ."WHERE (i.`status`='0' OR i.`status`='5') AND u.`id`=i.`customerid` AND u.`status` IN (".implode(', ', $userActiveStatuses).") AND TO_DAYS(NOW()) - TO_DAYS(i.`billdate`) > 0 AND i.`subscription_id` = '' "
                 ."ORDER BY i.`billdate`";
         $result = $this->db->query($query);
         $returnArray = array();
@@ -164,9 +166,10 @@ class PluginLatefee extends ServicePlugin
 
     function dashboard()
     {
+        $userActiveStatuses = StatusAliasGateway::userActiveAliases($this->user);
         $query = "SELECT COUNT(*) AS overdue "
                 ."FROM `invoice` i, `users` u "
-                ."WHERE (i.`status`='0' OR i.`status`='5') AND u.`id`=i.`customerid` AND u.`status`='1' AND TO_DAYS(NOW()) - TO_DAYS(i.`billdate`) > 0 AND i.`subscription_id` = '' ";
+                ."WHERE (i.`status`='0' OR i.`status`='5') AND u.`id`=i.`customerid` AND u.`status` IN (".implode(', ', $userActiveStatuses).") AND TO_DAYS(NOW()) - TO_DAYS(i.`billdate`) > 0 AND i.`subscription_id` = '' ";
         $result = $this->db->query($query);
         $row = $result->fetch();
         if (!$row) {
