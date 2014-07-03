@@ -71,7 +71,7 @@ class PluginLatefee extends ServicePlugin
     function execute()
     {
         $invoicesList = array();
-        $arrDays = explode(',', $this->settings->get('plugin_latefee_Days to charge late fee'));
+        $arrDays = explode(',', $this->settings->get('plugin_latefee_Day to charge late fee'));
 
         $billingGateway = new BillingGateway($this->user);
         $invoicesList = $billingGateway->getUnpaidInvoicesDueDays($arrDays);
