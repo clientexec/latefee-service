@@ -34,7 +34,7 @@ class PluginLatefee extends ServicePlugin
             ),
             lang('Day to charge late fee')  => array(
                 'type'          => 'text',
-                'description'   => lang('Enter the number of days after the due date to charge a late fee on invoices. <br><strong><i>Note: Please enter one number only.</i></strong><br><br><b>Example</b>: 10 would charge late fee when ten days late.'),
+                'description'   => lang('Enter the number of days after the due date to charge a late fee on invoices. <br><strong><i>Note: Please enter one number only.</i></strong><br><br><b>Example</b>: 10 would charge late fee when ten or more days late.'),
                 'value'         => '10',
             ),
             lang('Run schedule - Minute')  => array(
@@ -71,7 +71,7 @@ class PluginLatefee extends ServicePlugin
     function execute()
     {
         $invoicesList = array();
-        $arrDays = explode(',', $this->settings->get('plugin_latefee_Day to charge late fee'));
+        $arrDays = array($this->settings->get('plugin_latefee_Day to charge late fee').'+');
 
         $billingGateway = new BillingGateway($this->user);
         $invoicesList = $billingGateway->getUnpaidInvoicesDueDays($arrDays);
