@@ -122,7 +122,7 @@ class PluginLatefee extends ServicePlugin
             'm_Recurring'         => 0,
             'm_AppliesToID'       => $packageID,
             'm_Setup'             => 0,
-            'm_Taxable'           => 1,
+            'm_Taxable'           => 0,
             'm_TaxAmount'         => 0,
         );
         $invoiceEntry = new InvoiceEntry($params);
