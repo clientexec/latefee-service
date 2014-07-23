@@ -77,6 +77,13 @@ class PluginLatefee extends ServicePlugin
         $invoicesList = $billingGateway->getUnpaidInvoicesDueDays($arrDays);
 
         foreach($invoicesList as $invoiceData){
+            if($invoiceData['autopayment'] == 1){
+                $countTransactions = $billingGateway->countInvoiceTransactions($invoiceData['invoiceId']);
+                if($countTransactions == 0){
+                    continue;
+                }
+            }
+
             $invoice = new Invoice($invoiceData['invoiceId']);
             if(!$invoice->hasLateFees()){
                 $packageIDs = $invoice->getAllPackageIDs();
