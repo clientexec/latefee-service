@@ -103,7 +103,7 @@ class PluginLatefee extends ServicePlugin
                 }
                 if(!$chargedLateFee){
                     $lateFee = $this->settings->get('plugin_latefee_Default late fee charge');
-                    if($lateFee != ''){
+                    if($lateFee != '' && $lateFee > 0.00){
                         $this->addLateFeeInvoiceEntry($invoiceData, $lateFee, 0);
                     }
                 }
